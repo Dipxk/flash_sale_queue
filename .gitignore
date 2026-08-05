@@ -36,3 +36,4 @@
 
 /vendor/bundle
 .kamal/secrets
+.github/workflows/
