@@ -107,11 +107,19 @@ Browser UI ──HTTP──► Rails API ──SQL──► PostgreSQL
 4. **Checkout** — required `Idempotency-Key`; unique indexes on orders prevent duplicates
 5. **Rate limiting** — Redis sliding window; `429` + `Retry-After` / `X-RateLimit-*` headers
 
-## Hosting
+## Hosting (Fly.io)
 
-See `render.yaml` for a one-click Render deploy (web + worker + Postgres + Redis).
+```bash
+fly apps create flash-sale-queue
+fly postgres create --name flash-sale-queue-db --region iad
+fly postgres attach flash-sale-queue-db -a flash-sale-queue
+fly redis create --name flash-sale-queue-redis --region iad
+fly secrets set RAILS_MASTER_KEY="$(cat config/master.key)" -a flash-sale-queue
+# Also set REDIS_URL from the redis create output if not auto-attached
+fly deploy
+```
 
-Set `RAILS_MASTER_KEY` from your local `config/master.key` (never commit that file).
+App URL: `https://flash-sale-queue.fly.dev`
 
 ## Resume bullets (measured)
 

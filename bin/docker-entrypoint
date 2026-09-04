@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# Prepare DB when booting the web process (Fly process group "web" or rails server)
+if [[ "${1}" == "./bin/rails" && "${2}" == "server" ]] || [[ "${FLY_PROCESS_GROUP}" == "web" ]]; then
   ./bin/rails db:prepare
 fi
 
