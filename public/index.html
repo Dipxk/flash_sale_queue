@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>THRESHOLD — Flash Sale Waiting Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="orb orb-a" aria-hidden="true"></div>
+  <div class="orb orb-b" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="brand" href="/" aria-label="THRESHOLD home">THRESHOLD</a>
+    <p class="top-meta" id="stockMeta">loading sale…</p>
+  </header>
+
+  <main>
+    <!-- Landing / join -->
+    <section class="stage" id="stageJoin" data-active="true">
+      <div class="stage-copy">
+        <h1 class="display">Wait less.<br />Buy fair.</h1>
+        <p class="lede">
+          A virtual waiting room for high-demand drops — controlled admission,
+          atomic inventory, no overselling.
+        </p>
+        <div class="cta-row">
+          <button type="button" class="btn primary" id="joinBtn">Enter the queue</button>
+          <button type="button" class="btn ghost" id="newSaleBtn">Start a new drop</button>
+        </div>
+        <p class="hint" id="joinHint"></p>
+      </div>
+      <div class="stage-visual" aria-hidden="true">
+        <div class="radar">
+          <span class="ring"></span>
+          <span class="ring"></span>
+          <span class="ring"></span>
+          <span class="pulse"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Waiting room -->
+    <section class="stage" id="stageQueue" data-active="false">
+      <div class="stage-copy">
+        <p class="eyebrow">You’re in line</p>
+        <h1 class="display position" id="peopleAhead">—</h1>
+        <p class="lede" id="queueCopy">People ahead of you. Hang tight — we’ll push you through when a slot opens.</p>
+        <dl class="stats">
+          <div>
+            <dt>Status</dt>
+            <dd id="statusValue">waiting</dd>
+          </div>
+          <div>
+            <dt>Position</dt>
+            <dd id="positionValue">—</dd>
+          </div>
+          <div>
+            <dt>Token</dt>
+            <dd class="mono" id="tokenValue">—</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="stage-visual" aria-hidden="true">
+        <div class="ticker" id="ticker"></div>
+      </div>
+    </section>
+
+    <!-- Admitted / checkout -->
+    <section class="stage" id="stageCheckout" data-active="false">
+      <div class="stage-copy">
+        <p class="eyebrow admit">You’re admitted</p>
+        <h1 class="display">Checkout is open.</h1>
+        <p class="lede">Your slot and inventory reservation are held briefly. Complete checkout before they expire.</p>
+        <p class="expires" id="expiresAt"></p>
+        <div class="cta-row">
+          <button type="button" class="btn primary" id="checkoutBtn">Place order</button>
+        </div>
+        <p class="hint" id="checkoutHint"></p>
+      </div>
+      <div class="stage-visual" aria-hidden="true">
+        <div class="gate open">
+          <span></span><span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Done -->
+    <section class="stage" id="stageDone" data-active="false">
+      <div class="stage-copy">
+        <p class="eyebrow success" id="doneEyebrow">Order placed</p>
+        <h1 class="display" id="doneTitle">You’re in.</h1>
+        <p class="lede" id="doneCopy">Checkout completed without overselling — stock was reserved atomically.</p>
+        <div class="cta-row">
+          <button type="button" class="btn ghost" id="againBtn">Watch another drop</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <a href="/metrics" target="_blank" rel="noreferrer">Metrics</a>
+    <a href="/sidekiq" target="_blank" rel="noreferrer">Sidekiq</a>
+    <span id="liveDot" class="live-dot" title="Live connection"></span>
+  </footer>
+
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>

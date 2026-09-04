@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flash_sale
+      POSTGRES_PASSWORD: flash_sale
+      POSTGRES_DB: flash_sale_queue_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flash_sale -d flash_sale_queue_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bash -c "bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"
+    volumes:
+      - .:/rails
+      - bundle_cache:/usr/local/bundle
+    ports:
+      - "3000:3000"
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://flash_sale:flash_sale@db:5432/flash_sale_queue_development
+      REDIS_URL: redis://redis:6379/0
+      ACTION_CABLE_URL: ws://localhost:3000/cable
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100000}
+      RESERVATION_TTL_SECONDS: "120"
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-16}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-0}
+      REDIS_POOL_SIZE: "64"
+      SIDEKIQ_CONCURRENCY: "20"
+      DISABLE_HOST_CHECK: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  sidekiq:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    volumes:
+      - .:/rails
+      - bundle_cache:/usr/local/bundle
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://flash_sale:flash_sale@db:5432/flash_sale_queue_development
+      REDIS_URL: redis://redis:6379/0
+      RESERVATION_TTL_SECONDS: "120"
+      RAILS_MAX_THREADS: "16"
+      REDIS_POOL_SIZE: "32"
+      SIDEKIQ_CONCURRENCY: "20"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  bundle_cache:

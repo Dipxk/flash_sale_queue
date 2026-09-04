@@ -1,0 +1,7 @@
+:concurrency: <%= ENV.fetch("SIDEKIQ_CONCURRENCY", 10) %>
+:queues:
+  - [critical, 5]
+  - [default, 3]
+  - [low, 1]
+:dead_max_jobs: 10000
+:dead_timeout_in_seconds: 1209600

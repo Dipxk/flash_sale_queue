@@ -1,0 +1,69 @@
+# Render Blueprint — THRESHOLD flash sale queue
+# https://render.com/docs/blueprint-spec
+#
+# Deploy: connect this GitHub repo in Render → "New Blueprint Instance"
+# Required secret: RAILS_MASTER_KEY (from config/master.key)
+
+services:
+  - type: web
+    name: flash-sale-web
+    runtime: ruby
+    plan: free
+    buildCommand: bundle install && bundle exec rails db:migrate
+    startCommand: bundle exec puma -C config/puma.rb
+    healthCheckPath: /up
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "6000"
+      - key: RESERVATION_TTL_SECONDS
+        value: "120"
+      - key: DISABLE_HOST_CHECK
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flash-sale-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: flash-sale-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: flash-sale-sidekiq
+    runtime: ruby
+    plan: free
+    buildCommand: bundle install
+    startCommand: bundle exec sidekiq -C config/sidekiq.yml
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RESERVATION_TTL_SECONDS
+        value: "120"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flash-sale-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: flash-sale-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: keyvalue
+    name: flash-sale-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: flash-sale-db
+    plan: free
+    databaseName: flash_sale_queue
+    user: flash_sale

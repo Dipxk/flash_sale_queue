@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flash_sale
+          POSTGRES_PASSWORD: flash_sale
+          POSTGRES_DB: flash_sale_queue_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flash_sale -d flash_sale_queue_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://flash_sale:flash_sale@localhost:5432/flash_sale_queue_test
+      TEST_DATABASE_URL: postgres://flash_sale:flash_sale@localhost:5432/flash_sale_queue_test
+      REDIS_URL: redis://localhost:6379/15
+      RATE_LIMIT_PER_MINUTE: "100000"
+      RESERVATION_TTL_SECONDS: "2"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2.3"
+          bundler-cache: true
+
+      - name: Setup database
+        run: bundle exec rails db:prepare
+
+      - name: Unit + request specs
+        run: bundle exec rspec spec/requests spec/services --format documentation
+
+      - name: Concurrency correctness specs
+        run: bundle exec rspec spec/concurrency --format documentation
+
+      - name: Load-test smoke (optional)
+        if: github.event_name == 'push'
+        run: |
+          docker run --rm -i --network host grafana/k6 version
+          # App is not running in CI by default; smoke validates script parses.
+          docker run --rm -i -v "$PWD/load_tests:/scripts" grafana/k6 inspect /scripts/flash_sale.js

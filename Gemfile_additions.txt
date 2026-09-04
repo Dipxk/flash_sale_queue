@@ -1,0 +1,4 @@
+# Add these two lines to your Gemfile, then run `bundle install`
+
+gem "sidekiq"
+gem "redis"

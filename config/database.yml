@@ -1,0 +1,17 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+
+development:
+  <<: *default
+  url: <%= ENV.fetch("DATABASE_URL", "postgres://flash_sale:flash_sale@localhost:5432/flash_sale_queue_development") %>
+
+test:
+  <<: *default
+  url: <%= ENV.fetch("TEST_DATABASE_URL", ENV.fetch("DATABASE_URL", "postgres://flash_sale:flash_sale@localhost:5432/flash_sale_queue_test").sub(/_development|_production/, "_test").sub(/\/[^\/]+$/, "/flash_sale_queue_test")) %>
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>
