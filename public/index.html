@@ -3,186 +3,168 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>THRESHOLD — Interactive Flash Sale Waiting Room</title>
+  <title>THRESHOLD — Fair access for sold-out drops</title>
+  <meta name="description" content="A virtual waiting room that stops flash-sale overselling and checkout meltdowns." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
-  <div class="orb orb-a" aria-hidden="true"></div>
-  <div class="orb orb-b" aria-hidden="true"></div>
+  <div class="wash" aria-hidden="true"></div>
 
   <header class="top">
-    <a class="brand" href="/" aria-label="THRESHOLD home">THRESHOLD</a>
-    <div class="top-right">
-      <span class="live-pill" id="livePill"><i></i> live system</span>
-      <p class="top-meta" id="stockMeta">booting sale…</p>
+    <a class="brand" href="/">THRESHOLD</a>
+    <div class="top-actions">
+      <button type="button" class="mode-toggle" id="engToggle" aria-pressed="false">Engineer view</button>
+      <span class="online" id="onlinePill"><i></i> <span id="onlineCount">0</span> shopping now</span>
     </div>
   </header>
 
-  <nav class="journey" aria-label="Demo steps">
-    <button type="button" class="journey-step" data-step="join" data-active="true">1 · Join</button>
-    <button type="button" class="journey-step" data-step="queue" disabled>2 · Wait</button>
-    <button type="button" class="journey-step" data-step="checkout" disabled>3 · Checkout</button>
-    <button type="button" class="journey-step" data-step="done" disabled>4 · Done</button>
-  </nav>
+  <!-- STOREFRONT -->
+  <section class="view" id="viewStore" data-active="true">
+    <div class="hero">
+      <div class="hero-copy">
+        <p class="problem-tag">The problem this solves</p>
+        <h1 class="display">When everyone buys at once, shops break.</h1>
+        <p class="lede">
+          Flash sales create two failures: <strong>overselling</strong> (two people get the last item)
+          and <strong>meltdown</strong> (checkout collapses under the spike).
+          THRESHOLD puts shoppers in a fair waiting room, admits them in controlled batches,
+          and locks inventory so stock never goes negative.
+        </p>
 
-  <div class="layout">
-    <main>
-      <!-- Landing / join -->
-      <section class="stage" id="stageJoin" data-active="true">
-        <div class="stage-copy">
-          <p class="eyebrow">Interactive demo</p>
-          <h1 class="display">Feel the<br />flash-sale crush.</h1>
-          <p class="lede">
-            Too many shoppers, too little stock. THRESHOLD queues people,
-            admits only a few at a time, and reserves inventory atomically
-            so two buyers can’t take the same last unit.
-          </p>
-
-          <ol class="howto">
-            <li><strong>Crowd the drop</strong> — spawn fake shoppers so you’re not alone.</li>
-            <li><strong>Enter the queue</strong> — watch your live position update.</li>
-            <li><strong>Checkout</strong> — only when a slot opens and stock is held for you.</li>
-          </ol>
-
-          <div class="cta-row">
-            <button type="button" class="btn primary" id="crowdBtn">Crowd the drop (8 shoppers)</button>
-            <button type="button" class="btn primary soft" id="joinBtn">Enter the queue as me</button>
-            <button type="button" class="btn ghost" id="newSaleBtn">Reset drop</button>
-          </div>
-          <p class="hint" id="joinHint"></p>
-          <p class="coach" id="joinCoach">Tip: crowd first, then join — you’ll see people ahead of you.</p>
+        <div class="cta-row">
+          <button type="button" class="btn primary" id="startBtn">Join this drop</button>
+          <button type="button" class="btn ghost" id="demoBtn">Watch a 20s auto-demo</button>
         </div>
-
-        <div class="stage-visual" aria-hidden="true">
-          <div class="radar">
-            <span class="ring"></span>
-            <span class="ring"></span>
-            <span class="ring"></span>
-            <span class="pulse"></span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Waiting room -->
-      <section class="stage" id="stageQueue" data-active="false">
-        <div class="stage-copy">
-          <p class="eyebrow">You’re in line</p>
-          <h1 class="display position" id="peopleAhead">—</h1>
-          <p class="lede" id="queueCopy">People ahead of you. Admission is limited by Redis so the checkout lane never overloads.</p>
-
-          <div class="line-viz" id="lineViz" aria-live="polite"></div>
-
-          <dl class="stats">
-            <div>
-              <dt>Your status</dt>
-              <dd id="statusValue">waiting</dd>
-            </div>
-            <div>
-              <dt>Queue #</dt>
-              <dd id="positionValue">—</dd>
-            </div>
-            <div>
-              <dt>What happens next</dt>
-              <dd id="nextValue">Waiting for a free checkout slot</dd>
-            </div>
-          </dl>
-
-          <div class="cta-row">
-            <button type="button" class="btn ghost" id="crowdMoreBtn">Add 5 more shoppers</button>
-          </div>
-          <p class="coach">Only <span id="maxSlotsLabel">2</span> people can check out at once — everyone else waits.</p>
-        </div>
-
-        <div class="stage-visual" aria-hidden="true">
-          <div class="ticker" id="ticker"></div>
-        </div>
-      </section>
-
-      <!-- Admitted / checkout -->
-      <section class="stage" id="stageCheckout" data-active="false">
-        <div class="stage-copy">
-          <p class="eyebrow admit">You’re admitted</p>
-          <h1 class="display">Your slot is open.</h1>
-          <p class="lede">
-            A checkout lane freed up and one inventory unit is reserved for you
-            with a short TTL. If you don’t finish, stock returns automatically.
-          </p>
-          <p class="expires" id="expiresAt"></p>
-          <div class="cta-row">
-            <button type="button" class="btn primary" id="checkoutBtn">Place order</button>
-            <button type="button" class="btn ghost" id="dupCheckoutBtn">Retry same order (idempotent)</button>
-          </div>
-          <p class="hint" id="checkoutHint"></p>
-          <p class="coach">Try “Retry same order” — duplicate requests must not create a second purchase.</p>
-        </div>
-        <div class="stage-visual" aria-hidden="true">
-          <div class="gate open"><span></span><span></span></div>
-        </div>
-      </section>
-
-      <!-- Done -->
-      <section class="stage" id="stageDone" data-active="false">
-        <div class="stage-copy">
-          <p class="eyebrow success" id="doneEyebrow">Order placed</p>
-          <h1 class="display" id="doneTitle">You’re in.</h1>
-          <p class="lede" id="doneCopy">Checkout completed. Inventory was reserved atomically — no oversell.</p>
-
-          <ul class="win-list" id="winList">
-            <li>Queue admission limited by Redis</li>
-            <li>Stock decremented with a conditional SQL update</li>
-            <li>Idempotency key blocked duplicate orders</li>
-          </ul>
-
-          <div class="cta-row">
-            <button type="button" class="btn primary" id="againBtn">Run the demo again</button>
-            <a class="btn ghost" href="/metrics" target="_blank" rel="noreferrer">Open live metrics</a>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <aside class="board" aria-label="Live system board">
-      <h2>Live board</h2>
-      <p class="board-sub">Updates as people join, wait, and buy.</p>
-
-      <div class="meters">
-        <div class="meter">
-          <span class="meter-label">Stock left</span>
-          <strong id="boardStock">—</strong>
-          <div class="bar"><i id="barStock"></i></div>
-        </div>
-        <div class="meter">
-          <span class="meter-label">Waiting</span>
-          <strong id="boardWaiting">—</strong>
-          <div class="bar"><i id="barWaiting"></i></div>
-        </div>
-        <div class="meter">
-          <span class="meter-label">In checkout</span>
-          <strong id="boardActive">—</strong>
-          <div class="bar"><i id="barActive"></i></div>
-        </div>
+        <p class="hint" id="storeHint"></p>
       </div>
 
-      <div class="board-note">
-        <p><strong>Why it matters</strong></p>
-        <p>Without a waiting room, everyone hits checkout at once → overselling and crashed databases.</p>
+      <div class="product" aria-label="Limited drop product">
+        <div class="product-art" aria-hidden="true">
+          <div class="shoe"></div>
+          <div class="glow"></div>
+        </div>
+        <div class="product-meta">
+          <p class="product-name">Aurora Runner</p>
+          <p class="product-sub">Limited city drop · 8 pairs</p>
+          <div class="product-stats">
+            <div>
+              <span>Left</span>
+              <strong id="heroStock">8</strong>
+            </div>
+            <div>
+              <span>In line</span>
+              <strong id="heroWaiting">0</strong>
+            </div>
+            <div>
+              <span>Checkout lanes</span>
+              <strong id="heroLanes">2</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="proof-row" id="engPanel" hidden>
+      <div>
+        <h3>Under the hood</h3>
+        <p>Redis Lua admission · PostgreSQL conditional stock update · Sidekiq release jobs · idempotent checkout</p>
+      </div>
+      <a href="/metrics" target="_blank" rel="noreferrer">Live metrics →</a>
+    </div>
+  </section>
+
+  <!-- WAITING ROOM -->
+  <section class="view" id="viewQueue" data-active="false">
+    <div class="queue-shell">
+      <div class="queue-main">
+        <p class="eyebrow" id="queueEyebrow">Virtual waiting room</p>
+        <h2 class="display sm" id="queueTitle">You’re in line for Aurora Runner</h2>
+        <p class="lede" id="queueLede">Only a few people can check out at once. That protects stock and keeps the system alive.</p>
+
+        <div class="big-number">
+          <span class="num" id="aheadNum">—</span>
+          <span class="num-label" id="aheadLabel">people ahead of you</span>
+        </div>
+
+        <div class="crowd" id="crowd" aria-live="polite"></div>
+
+        <div class="status-strip">
+          <div>
+            <span>Your place</span>
+            <strong id="placeNum">—</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="statusText">waiting</strong>
+          </div>
+          <div>
+            <span>Stock left</span>
+            <strong id="queueStock">—</strong>
+          </div>
+        </div>
+
+        <p class="coach" id="queueCoach">Hang tight — when a lane opens, you’ll get pulled through automatically.</p>
+        <p class="hint" id="queueHint"></p>
       </div>
 
-      <h3>Activity</h3>
-      <ul class="feed" id="activityFeed">
-        <li>Waiting for your first action…</li>
+      <aside class="social">
+        <h3>Live room</h3>
+        <p class="social-sub">Real shoppers + simulated crowd in this drop.</p>
+        <ul class="feed" id="feed">
+          <li>Room is open…</li>
+        </ul>
+        <button type="button" class="btn ghost full" id="addCrowdBtn">Add more shoppers</button>
+      </aside>
+    </div>
+  </section>
+
+  <!-- CHECKOUT -->
+  <section class="view" id="viewCheckout" data-active="false">
+    <div class="center-card">
+      <p class="eyebrow admit">Lane open</p>
+      <h2 class="display sm">It’s your turn.</h2>
+      <p class="lede">
+        A checkout lane freed up and one pair is reserved for you for a short window.
+        Finish now, or the reservation returns to the pool.
+      </p>
+      <p class="expires" id="expiresAt"></p>
+      <div class="cta-row">
+        <button type="button" class="btn primary" id="buyBtn">Complete purchase</button>
+        <button type="button" class="btn ghost" id="retryBtn">Retry purchase (safe)</button>
+      </div>
+      <p class="hint" id="buyHint"></p>
+      <p class="coach">“Retry” uses the same idempotency key — it cannot create a second order.</p>
+    </div>
+  </section>
+
+  <!-- DONE -->
+  <section class="view" id="viewDone" data-active="false">
+    <div class="center-card">
+      <p class="eyebrow success" id="doneEyebrow">Purchase confirmed</p>
+      <h2 class="display sm" id="doneTitle">You got one — fairly.</h2>
+      <p class="lede" id="doneCopy">
+        THRESHOLD prevented two classic flash-sale failures: overselling the last unit,
+        and letting unlimited traffic crush checkout.
+      </p>
+      <ul class="solved">
+        <li><strong>Fair access:</strong> people were admitted in controlled batches</li>
+        <li><strong>No oversell:</strong> stock changed with an atomic database update</li>
+        <li><strong>Safe retries:</strong> duplicate checkout requests couldn’t double-buy</li>
       </ul>
-    </aside>
-  </div>
+      <div class="cta-row">
+        <button type="button" class="btn primary" id="againBtn">Try another drop</button>
+        <a class="btn ghost" href="https://github.com/Dipxk/flash_sale_queue" target="_blank" rel="noreferrer">See the code</a>
+      </div>
+    </div>
+  </section>
 
   <footer class="foot">
+    <span>Solves flash-sale overselling + overload</span>
     <a href="https://github.com/Dipxk/flash_sale_queue" target="_blank" rel="noreferrer">GitHub</a>
-    <a href="/metrics" target="_blank" rel="noreferrer">Metrics</a>
-    <span id="liveDot" class="live-dot" title="Live connection"></span>
   </footer>
 
   <script type="module" src="/assets/app.js"></script>

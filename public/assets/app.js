@@ -1,96 +1,90 @@
 import { createConsumer } from "https://esm.sh/@rails/actioncable@8.0.200";
 
-const API = "";
-const params = new URLSearchParams(window.location.search);
 const SALE_KEY = "threshold_sale_id";
 const TOKEN_KEY = "threshold_user_token";
-const IDEM_KEY = "threshold_idempotency_key";
+const IDEM_KEY = "threshold_idem_key";
+
+const NAMES = [
+  "Maya", "Jordan", "Alex", "Sam", "Riley", "Casey", "Drew", "Avery",
+  "Quinn", "Blake", "Nora", "Kai", "Reese", "Sky", "Devon", "Harper"
+];
 
 const els = {
-  stockMeta: document.getElementById("stockMeta"),
-  livePill: document.getElementById("livePill"),
-  liveDot: document.getElementById("liveDot"),
-  joinBtn: document.getElementById("joinBtn"),
-  crowdBtn: document.getElementById("crowdBtn"),
-  crowdMoreBtn: document.getElementById("crowdMoreBtn"),
-  newSaleBtn: document.getElementById("newSaleBtn"),
-  joinHint: document.getElementById("joinHint"),
-  joinCoach: document.getElementById("joinCoach"),
-  peopleAhead: document.getElementById("peopleAhead"),
-  queueCopy: document.getElementById("queueCopy"),
-  statusValue: document.getElementById("statusValue"),
-  positionValue: document.getElementById("positionValue"),
-  nextValue: document.getElementById("nextValue"),
-  lineViz: document.getElementById("lineViz"),
-  maxSlotsLabel: document.getElementById("maxSlotsLabel"),
-  checkoutBtn: document.getElementById("checkoutBtn"),
-  dupCheckoutBtn: document.getElementById("dupCheckoutBtn"),
-  checkoutHint: document.getElementById("checkoutHint"),
+  views: {
+    store: document.getElementById("viewStore"),
+    queue: document.getElementById("viewQueue"),
+    checkout: document.getElementById("viewCheckout"),
+    done: document.getElementById("viewDone"),
+  },
+  engToggle: document.getElementById("engToggle"),
+  engPanel: document.getElementById("engPanel"),
+  onlinePill: document.getElementById("onlinePill"),
+  onlineCount: document.getElementById("onlineCount"),
+  startBtn: document.getElementById("startBtn"),
+  demoBtn: document.getElementById("demoBtn"),
+  storeHint: document.getElementById("storeHint"),
+  heroStock: document.getElementById("heroStock"),
+  heroWaiting: document.getElementById("heroWaiting"),
+  heroLanes: document.getElementById("heroLanes"),
+  aheadNum: document.getElementById("aheadNum"),
+  aheadLabel: document.getElementById("aheadLabel"),
+  crowd: document.getElementById("crowd"),
+  placeNum: document.getElementById("placeNum"),
+  statusText: document.getElementById("statusText"),
+  queueStock: document.getElementById("queueStock"),
+  queueCoach: document.getElementById("queueCoach"),
+  queueHint: document.getElementById("queueHint"),
+  feed: document.getElementById("feed"),
+  addCrowdBtn: document.getElementById("addCrowdBtn"),
   expiresAt: document.getElementById("expiresAt"),
+  buyBtn: document.getElementById("buyBtn"),
+  retryBtn: document.getElementById("retryBtn"),
+  buyHint: document.getElementById("buyHint"),
   doneEyebrow: document.getElementById("doneEyebrow"),
   doneTitle: document.getElementById("doneTitle"),
   doneCopy: document.getElementById("doneCopy"),
   againBtn: document.getElementById("againBtn"),
-  boardStock: document.getElementById("boardStock"),
-  boardWaiting: document.getElementById("boardWaiting"),
-  boardActive: document.getElementById("boardActive"),
-  barStock: document.getElementById("barStock"),
-  barWaiting: document.getElementById("barWaiting"),
-  barActive: document.getElementById("barActive"),
-  activityFeed: document.getElementById("activityFeed"),
-  journeySteps: [...document.querySelectorAll(".journey-step")],
-  stages: {
-    join: document.getElementById("stageJoin"),
-    queue: document.getElementById("stageQueue"),
-    checkout: document.getElementById("stageCheckout"),
-    done: document.getElementById("stageDone"),
-  },
 };
 
 let sale = null;
 let userToken = localStorage.getItem(TOKEN_KEY);
-let lastIdempotencyKey = localStorage.getItem(IDEM_KEY);
+let idemKey = localStorage.getItem(IDEM_KEY);
 let consumer = null;
 let queueSub = null;
 let inventorySub = null;
 let pollTimer = null;
 let boardTimer = null;
+let demoRunning = false;
 
-function show(stage) {
-  Object.values(els.stages).forEach((node) => node.setAttribute("data-active", "false"));
-  els.stages[stage].setAttribute("data-active", "true");
-  updateJourney(stage);
-}
-
-function updateJourney(stage) {
-  const order = ["join", "queue", "checkout", "done"];
-  const idx = order.indexOf(stage);
-  els.journeySteps.forEach((btn) => {
-    const step = btn.dataset.step;
-    const stepIdx = order.indexOf(step);
-    btn.dataset.active = String(step === stage);
-    btn.dataset.done = String(stepIdx < idx);
-    btn.disabled = stepIdx > idx;
+function show(view) {
+  Object.entries(els.views).forEach(([key, node]) => {
+    node.dataset.active = String(key === view);
   });
 }
 
-function setBusy(btn, busy, label) {
+function busy(btn, on, label) {
   if (!btn) return;
-  btn.disabled = busy;
+  btn.disabled = on;
   if (label) btn.textContent = label;
 }
 
-function logActivity(message, emphasize = null) {
+function feed(msg, boldBit = null) {
   const li = document.createElement("li");
-  li.innerHTML = emphasize ? message.replace(emphasize, `<em>${emphasize}</em>`) : message;
-  els.activityFeed.prepend(li);
-  while (els.activityFeed.children.length > 12) {
-    els.activityFeed.lastElementChild.remove();
-  }
+  li.innerHTML = boldBit ? msg.replace(boldBit, `<b>${boldBit}</b>`) : msg;
+  els.feed.prepend(li);
+  while (els.feed.children.length > 14) els.feed.lastChild.remove();
+}
+
+function initials(name) {
+  return name.slice(0, 1).toUpperCase();
+}
+
+function randName() {
+  return NAMES[Math.floor(Math.random() * NAMES.length)];
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(path, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -100,94 +94,84 @@ async function api(path, options = {}) {
   });
   const text = await res.text();
   let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = { error: text };
-  }
+  try { body = text ? JSON.parse(text) : null; } catch { body = { error: text }; }
   return { ok: res.ok, status: res.status, body, headers: res.headers };
 }
 
-function updateBoard(data) {
+function paintSale(data) {
   if (!data) return;
-  const stock = data.stock_remaining ?? 0;
-  const total = data.total_stock || Math.max(stock, 1);
-  const waiting = data.waiting ?? 0;
-  const active = data.active_checkouts ?? 0;
-  const maxActive = data.max_concurrent_checkouts || 2;
-
-  els.boardStock.textContent = `${stock}/${total}`;
-  els.boardWaiting.textContent = String(waiting);
-  els.boardActive.textContent = `${active}/${maxActive}`;
-  els.barStock.style.width = `${Math.max(0, Math.min(100, (stock / total) * 100))}%`;
-  els.barWaiting.style.width = `${Math.max(8, Math.min(100, waiting * 8))}%`;
-  els.barActive.style.width = `${Math.max(0, Math.min(100, (active / maxActive) * 100))}%`;
-  if (els.maxSlotsLabel) els.maxSlotsLabel.textContent = String(maxActive);
-  els.stockMeta.textContent = `${data.name || "Drop"} · ${stock} left · ${waiting} waiting · ${active} in checkout`;
+  sale = { ...sale, ...data };
+  els.heroStock.textContent = String(data.stock_remaining ?? "—");
+  els.heroWaiting.textContent = String(data.waiting ?? 0);
+  els.heroLanes.textContent = String(data.max_concurrent_checkouts ?? 2);
+  els.queueStock.textContent = String(data.stock_remaining ?? "—");
+  const online = (data.waiting || 0) + (data.active_checkouts || 0);
+  els.onlineCount.textContent = String(Math.max(online, online ? online : 1));
+  els.onlinePill.classList.toggle("on", online > 0);
 }
 
-function renderLine(peopleAhead = 0, status = "waiting") {
-  if (!els.lineViz) return;
-  els.lineViz.innerHTML = "";
-  const ahead = Math.min(Number(peopleAhead) || 0, 24);
-  for (let i = 0; i < ahead; i += 1) {
-    const d = document.createElement("div");
-    d.className = "person";
-    d.title = "Shopper ahead";
-    els.lineViz.appendChild(d);
+function renderCrowd(ahead, status) {
+  els.crowd.innerHTML = "";
+  const n = Math.min(Number(ahead) || 0, 28);
+  for (let i = 0; i < n; i += 1) {
+    const a = document.createElement("div");
+    a.className = "avatar";
+    a.textContent = initials(randName());
+    a.title = "Shopper ahead";
+    els.crowd.appendChild(a);
   }
   const you = document.createElement("div");
-  you.className = `person you${status === "active" ? " active" : ""}`;
+  you.className = `avatar you${status === "active" ? " lane" : ""}`;
+  you.textContent = "YOU";
   you.title = "You";
-  els.lineViz.appendChild(you);
+  els.crowd.appendChild(you);
 }
 
 async function createSale() {
-  const now = new Date();
-  const ends = new Date(now.getTime() + 60 * 60 * 1000);
+  const now = Date.now();
   const { ok, body } = await api("/flash_sales", {
     method: "POST",
     body: JSON.stringify({
       flash_sale: {
-        name: `Drop ${now.toLocaleTimeString()}`,
-        starts_at: new Date(now.getTime() - 60_000).toISOString(),
-        ends_at: ends.toISOString(),
+        name: "Aurora Runner Drop",
+        starts_at: new Date(now - 60_000).toISOString(),
+        ends_at: new Date(now + 60 * 60_000).toISOString(),
         total_stock: 8,
         max_concurrent_checkouts: 2,
       },
     }),
   });
-  if (!ok) throw new Error(body?.error || "Could not create sale");
+  if (!ok) throw new Error(body?.error || "Could not create drop");
   localStorage.setItem(SALE_KEY, String(body.id));
-  logActivity(`New drop created with ${body.stock_remaining} units`, "New drop");
   return loadSale(body.id);
 }
 
 async function loadSale(id) {
   const { ok, body } = await api(`/flash_sales/${id}`);
   if (!ok) return null;
-  sale = body;
-  updateBoard(sale);
-  connectInventory(sale.id);
-  return sale;
+  paintSale(body);
+  connectInventory(body.id);
+  return body;
 }
 
 async function ensureSale() {
-  const forced = params.get("sale");
-  const stored = forced || localStorage.getItem(SALE_KEY);
-  if (stored) {
-    const existing = await loadSale(stored);
+  const id = localStorage.getItem(SALE_KEY);
+  if (id) {
+    const existing = await loadSale(id);
     if (existing?.live) return existing;
   }
   return createSale();
 }
 
-async function refreshBoard() {
+async function refreshSale() {
   if (!sale?.id) return;
   const { ok, body } = await api(`/flash_sales/${sale.id}`);
-  if (!ok) return;
-  sale = { ...sale, ...body };
-  updateBoard(sale);
+  if (ok) paintSale(body);
+}
+
+function cableUrl() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${location.host}/cable`;
 }
 
 function disconnectCable() {
@@ -197,13 +181,6 @@ function disconnectCable() {
   inventorySub = null;
   consumer?.disconnect();
   consumer = null;
-  els.liveDot.classList.remove("on");
-  els.livePill.classList.remove("on");
-}
-
-function cableUrl() {
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}/cable`;
 }
 
 function connectInventory(saleId) {
@@ -214,24 +191,17 @@ function connectInventory(saleId) {
   inventorySub = consumer.subscriptions.create(
     { channel: "InventoryChannel", flash_sale_id: saleId },
     {
-      connected: () => {
-        els.liveDot.classList.add("on");
-        els.livePill.classList.add("on");
-      },
-      disconnected: () => {
-        els.liveDot.classList.remove("on");
-        els.livePill.classList.remove("on");
-      },
       received: (data) => {
-        if (!sale) return;
-        sale = {
-          ...sale,
+        paintSale({
+          ...(sale || {}),
           stock_remaining: data.stock_remaining,
           waiting: data.waiting,
           active_checkouts: data.active_checkouts,
           live: data.live,
-        };
-        updateBoard(sale);
+          max_concurrent_checkouts: sale?.max_concurrent_checkouts,
+          name: sale?.name,
+          total_stock: sale?.total_stock,
+        });
       },
     }
   );
@@ -241,59 +211,50 @@ function connectQueue(token) {
   disconnectCable();
   consumer = createConsumer(`${cableUrl()}?user_token=${encodeURIComponent(token)}`);
   if (sale) connectInventory(sale.id);
-
   queueSub = consumer.subscriptions.create(
     { channel: "QueueChannel" },
-    {
-      connected: () => {
-        els.liveDot.classList.add("on");
-        els.livePill.classList.add("on");
-      },
-      received: (data) => applyQueueUpdate(data),
-    }
+    { received: (data) => onQueue(data) }
   );
 }
 
-function applyQueueUpdate(data) {
-  els.statusValue.textContent = data.status;
-  els.positionValue.textContent = data.position ?? "—";
-  els.peopleAhead.textContent = String(data.people_ahead ?? "—");
-  renderLine(data.people_ahead, data.status);
+function onQueue(data) {
+  const ahead = data.people_ahead ?? 0;
+  els.aheadNum.textContent = String(ahead);
+  els.aheadLabel.textContent = ahead === 1 ? "person ahead of you" : "people ahead of you";
+  els.placeNum.textContent = data.position != null ? `#${data.position}` : "—";
+  els.statusText.textContent = data.status;
+  renderCrowd(ahead, data.status);
 
   if (data.status === "waiting") {
-    const n = data.people_ahead ?? 0;
-    els.queueCopy.textContent =
-      n === 0
-        ? "You’re next. As soon as a checkout slot frees, Redis admission lets you through."
-        : `${n} shoppers ahead. Only a few people can check out at once — that’s intentional.`;
-    els.nextValue.textContent = "Waiting for a free checkout slot";
+    els.queueCoach.textContent =
+      ahead === 0
+        ? "You’re next. As soon as a checkout lane frees, you’re in."
+        : "Only 2 lanes are open at a time — that’s how we stop the stampede.";
     show("queue");
   } else if (data.status === "active") {
     if (data.expires_at) {
-      const exp = new Date(data.expires_at);
-      els.expiresAt.textContent = `Inventory reservation held until ${exp.toLocaleTimeString()}`;
+      els.expiresAt.textContent = `Reserved until ${new Date(data.expires_at).toLocaleTimeString()}`;
     }
-    els.nextValue.textContent = "Checkout open — complete before expiry";
-    logActivity("You were admitted to checkout", "admitted");
+    feed("A checkout lane opened for you", "checkout lane opened");
     show("checkout");
   } else if (data.status === "checked_out") {
-    els.doneEyebrow.textContent = "Order placed";
-    els.doneTitle.textContent = "You’re in.";
+    els.doneEyebrow.textContent = "Purchase confirmed";
+    els.doneTitle.textContent = "You got one — fairly.";
     els.doneCopy.textContent =
-      "Success. Stock was reserved with a conditional SQL update, so two shoppers could never claim the same unit.";
-    logActivity("Order completed — no oversell", "Order completed");
-    show("done");
+      "Stock was locked with an atomic update, so nobody else could take your pair. The waiting room kept checkout from melting down.";
+    feed("Purchase complete — no oversell", "Purchase complete");
     stopPolling();
-    refreshBoard();
+    show("done");
+    refreshSale();
   } else if (data.status === "expired") {
-    els.doneEyebrow.textContent = "Slot expired";
-    els.doneTitle.textContent = "Time’s up.";
+    els.doneEyebrow.textContent = "Reservation expired";
+    els.doneTitle.textContent = "Your window closed.";
     els.doneCopy.textContent =
-      "Your checkout window expired. The reserved unit returned to inventory automatically.";
-    logActivity("Reservation expired — stock returned", "expired");
-    show("done");
+      "You didn’t finish in time, so the reserved pair returned to inventory for the next shopper.";
+    feed("Reservation expired — stock returned", "expired");
     stopPolling();
-    refreshBoard();
+    show("done");
+    refreshSale();
   }
 }
 
@@ -302,8 +263,8 @@ function startPolling(token) {
   pollTimer = setInterval(async () => {
     if (!sale) return;
     const { ok, body } = await api(`/flash_sales/${sale.id}/queue/${token}`);
-    if (ok) applyQueueUpdate({ ...body, user_token: token, position: body.position });
-    refreshBoard();
+    if (ok) onQueue({ ...body, position: body.position });
+    refreshSale();
   }, 2000);
 }
 
@@ -312,145 +273,171 @@ function stopPolling() {
   pollTimer = null;
 }
 
-async function crowdQueue(count = 8) {
+async function crowd(count = 8, announce = true) {
   await ensureSale();
-  setBusy(els.crowdBtn, true, "Crowding…");
-  setBusy(els.crowdMoreBtn, true, "Adding…");
-  els.joinHint.textContent = "";
-  let joined = 0;
-  const jobs = Array.from({ length: count }, () =>
-    api(`/flash_sales/${sale.id}/queue`, { method: "POST" }).then((res) => {
-      if (res.ok) joined += 1;
-      return res;
-    })
+  const results = await Promise.all(
+    Array.from({ length: count }, () => api(`/flash_sales/${sale.id}/queue`, { method: "POST" }))
   );
-  await Promise.all(jobs);
-  await refreshBoard();
-  logActivity(`Crowded the drop with ${joined} fake shoppers`, `${joined} fake shoppers`);
-  els.joinCoach.textContent = joined
-    ? `Nice — ${joined} shoppers are in line. Now enter as yourself and watch your position.`
-    : "Couldn’t crowd right now — try again or reset the drop.";
-  setBusy(els.crowdBtn, false, "Crowd the drop (8 shoppers)");
-  setBusy(els.crowdMoreBtn, false, "Add 5 more shoppers");
+  const joined = results.filter((r) => r.ok).length;
+  await refreshSale();
+  if (announce && joined) {
+    feed(`${joined} shoppers jumped into line`, `${joined} shoppers`);
+    for (let i = 0; i < Math.min(joined, 4); i += 1) {
+      feed(`${randName()} joined the waiting room`);
+    }
+  }
+  return joined;
 }
 
-async function joinQueue() {
-  els.joinHint.textContent = "";
-  setBusy(els.joinBtn, true, "Joining…");
+async function joinAsMe() {
+  els.storeHint.textContent = "";
+  els.queueHint.textContent = "";
+  busy(els.startBtn, true, "Getting in line…");
   try {
     await ensureSale();
+    // Seed a crowd if the room is empty so the problem is visible.
+    if ((sale.waiting || 0) < 3) {
+      await crowd(7, true);
+    }
     const { ok, body, status } = await api(`/flash_sales/${sale.id}/queue`, { method: "POST" });
     if (!ok) {
-      els.joinHint.textContent = body?.error || `Could not join (${status})`;
+      els.storeHint.textContent = body?.error || `Could not join (${status})`;
       return;
     }
     userToken = body.user_token;
     localStorage.setItem(TOKEN_KEY, userToken);
-    lastIdempotencyKey = null;
+    idemKey = null;
     localStorage.removeItem(IDEM_KEY);
-    logActivity(`You joined at position #${body.position}`, "You joined");
-    applyQueueUpdate(body);
+    feed("You entered the waiting room", "You entered");
+    onQueue(body);
     connectQueue(userToken);
     startPolling(userToken);
-    refreshBoard();
-  } catch (err) {
-    els.joinHint.textContent = err.message;
+    show("queue");
+  } catch (e) {
+    els.storeHint.textContent = e.message;
   } finally {
-    setBusy(els.joinBtn, false, "Enter the queue as me");
+    busy(els.startBtn, false, "Join this drop");
   }
 }
 
-async function checkout({ reuseKey = false } = {}) {
-  els.checkoutHint.textContent = "";
-  const label = reuseKey ? "Retrying…" : "Placing order…";
-  setBusy(els.checkoutBtn, true, label);
-  setBusy(els.dupCheckoutBtn, true);
+async function buy({ retry = false } = {}) {
+  els.buyHint.textContent = "";
+  busy(els.buyBtn, true, retry ? "Retrying…" : "Buying…");
+  busy(els.retryBtn, true);
   try {
-    if (!reuseKey || !lastIdempotencyKey) {
-      lastIdempotencyKey = `${userToken}-web-${Date.now()}`;
-      localStorage.setItem(IDEM_KEY, lastIdempotencyKey);
+    if (!retry || !idemKey) {
+      idemKey = `${userToken}-buy-${Date.now()}`;
+      localStorage.setItem(IDEM_KEY, idemKey);
     }
     const { ok, body, status, headers } = await api(`/flash_sales/${sale.id}/checkout`, {
       method: "POST",
       headers: {
-        "Idempotency-Key": lastIdempotencyKey,
+        "Idempotency-Key": idemKey,
         "X-User-Token": userToken,
       },
       body: JSON.stringify({ user_token: userToken }),
     });
     if (!ok) {
-      els.checkoutHint.textContent = body?.error || `Checkout failed (${status})`;
+      els.buyHint.textContent = body?.error || `Purchase failed (${status})`;
       return;
     }
-    const replayed = headers.get("Idempotency-Replayed") === "true";
-    if (replayed) {
-      logActivity("Duplicate checkout blocked by idempotency key", "Duplicate checkout");
-      els.checkoutHint.textContent = "Replay detected — same order returned, no double charge/stock hit.";
+    if (headers.get("Idempotency-Replayed") === "true") {
+      els.buyHint.textContent = "Safe retry: same order returned, no double purchase.";
+      feed("Duplicate buy blocked", "Duplicate buy");
     } else {
-      logActivity("Checkout succeeded", "Checkout");
+      feed("You secured a pair", "secured a pair");
     }
-    applyQueueUpdate({ status: "checked_out", people_ahead: 0, user_token: userToken });
-  } catch (err) {
-    els.checkoutHint.textContent = err.message;
+    onQueue({ status: "checked_out", people_ahead: 0, position: els.placeNum.textContent.replace("#", "") });
+  } catch (e) {
+    els.buyHint.textContent = e.message;
   } finally {
-    setBusy(els.checkoutBtn, false, "Place order");
-    setBusy(els.dupCheckoutBtn, false, "Retry same order (idempotent)");
+    busy(els.buyBtn, false, "Complete purchase");
+    busy(els.retryBtn, false, "Retry purchase (safe)");
   }
 }
 
-async function resetDemo() {
+async function resetDrop() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(IDEM_KEY);
   userToken = null;
-  lastIdempotencyKey = null;
+  idemKey = null;
   stopPolling();
   disconnectCable();
-  els.activityFeed.innerHTML = "";
-  logActivity("Demo reset — starting a fresh drop", "Demo reset");
+  els.feed.innerHTML = "";
   await createSale();
-  show("join");
+  feed("New drop opened — 8 pairs available", "New drop");
+  show("store");
 }
 
-async function resumeIfPossible() {
-  await ensureSale();
-  boardTimer = setInterval(refreshBoard, 4000);
-  if (!userToken || !sale) {
-    show("join");
-    logActivity("Demo ready — crowd the drop, then join", "Demo ready");
-    return;
-  }
-  const { ok, body } = await api(`/flash_sales/${sale.id}/queue/${userToken}`);
-  if (!ok) {
-    localStorage.removeItem(TOKEN_KEY);
-    userToken = null;
-    show("join");
-    return;
-  }
-  applyQueueUpdate({ ...body, user_token: userToken });
-  if (body.status === "waiting" || body.status === "active") {
-    connectQueue(userToken);
-    startPolling(userToken);
-  }
-}
-
-els.joinBtn.addEventListener("click", joinQueue);
-els.crowdBtn.addEventListener("click", () => crowdQueue(8));
-els.crowdMoreBtn?.addEventListener("click", () => crowdQueue(5));
-els.checkoutBtn.addEventListener("click", () => checkout({ reuseKey: false }));
-els.dupCheckoutBtn?.addEventListener("click", () => checkout({ reuseKey: true }));
-els.newSaleBtn.addEventListener("click", async () => {
-  setBusy(els.newSaleBtn, true, "Resetting…");
+async function autoDemo() {
+  if (demoRunning) return;
+  demoRunning = true;
+  busy(els.demoBtn, true, "Running demo…");
+  busy(els.startBtn, true);
+  els.storeHint.textContent = "";
   try {
-    await resetDemo();
-  } catch (err) {
-    els.joinHint.textContent = err.message;
+    await resetDrop();
+    feed("Auto-demo: simulating a flash-sale spike", "Auto-demo");
+    await crowd(10, true);
+    await new Promise((r) => setTimeout(r, 700));
+    await joinAsMe();
+    // Wait until admitted or timeout
+    const started = Date.now();
+    while (Date.now() - started < 25000) {
+      const status = els.statusText.textContent;
+      if (status === "active") break;
+      if (status === "checked_out" || status === "expired") break;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    if (els.statusText.textContent === "active") {
+      await new Promise((r) => setTimeout(r, 600));
+      await buy({ retry: false });
+    }
+  } catch (e) {
+    els.storeHint.textContent = e.message;
   } finally {
-    setBusy(els.newSaleBtn, false, "Reset drop");
+    demoRunning = false;
+    busy(els.demoBtn, false, "Watch a 20s auto-demo");
+    busy(els.startBtn, false, "Join this drop");
   }
-});
-els.againBtn.addEventListener("click", () => resetDemo());
+}
 
-resumeIfPossible().catch((err) => {
-  els.joinHint.textContent = err.message;
-  show("join");
+els.engToggle.addEventListener("click", () => {
+  const on = els.engToggle.getAttribute("aria-pressed") !== "true";
+  els.engToggle.setAttribute("aria-pressed", String(on));
+  els.engPanel.hidden = !on;
 });
+
+els.startBtn.addEventListener("click", joinAsMe);
+els.demoBtn.addEventListener("click", autoDemo);
+els.addCrowdBtn.addEventListener("click", async () => {
+  busy(els.addCrowdBtn, true, "Adding…");
+  await crowd(5, true);
+  busy(els.addCrowdBtn, false, "Add more shoppers");
+});
+els.buyBtn.addEventListener("click", () => buy({ retry: false }));
+els.retryBtn.addEventListener("click", () => buy({ retry: true }));
+els.againBtn.addEventListener("click", resetDrop);
+
+(async function boot() {
+  try {
+    await ensureSale();
+    boardTimer = setInterval(refreshSale, 4000);
+    feed("Drop is live — limited to 8 pairs", "Drop is live");
+
+    if (userToken && sale) {
+      const { ok, body } = await api(`/flash_sales/${sale.id}/queue/${userToken}`);
+      if (ok && (body.status === "waiting" || body.status === "active")) {
+        onQueue(body);
+        connectQueue(userToken);
+        startPolling(userToken);
+        show(body.status === "active" ? "checkout" : "queue");
+        return;
+      }
+    }
+    show("store");
+  } catch (e) {
+    els.storeHint.textContent = e.message;
+    show("store");
+  }
+})();
