@@ -8,7 +8,7 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 
 # Queue, Redis, real-time
 gem "sidekiq", "~> 7.3"
-gem "redis", "~> 5.0"
+gem "redis", "~> 6.0"
 gem "connection_pool", "~> 2.4"
 
 # CORS for local frontends / load tests
